@@ -692,6 +692,55 @@ function attachImgFallback(img, rawUrl, onAllFailed) {
   let attempts = 0;
   const maxAttempts = sources.length * 2; // Har bir URL uchun 2 marta urinish
   
+ // ── IMAGE PROXY (har doim ishlaydigan, ko'p bosqichli versiya) ────────────
+function getOriginalUrl(rawUrl) {
+  if (!rawUrl) return null;
+  if (rawUrl.includes('wsrv.nl') || rawUrl.includes('weserv.nl') || rawUrl.includes('statically.io')) {
+    try {
+      const match = rawUrl.match(/[?&]url=([^&]+)/);
+      if (match) return decodeURIComponent(match[1]);
+    } catch(e) {}
+  }
+  return rawUrl;
+}
+
+function buildImageSources(rawUrl) {
+  const original = getOriginalUrl(rawUrl);
+  if (!original || original.trim() === '') return [];
+  
+  const enc = encodeURIComponent(original);
+  const sources = [];
+  
+  try {
+    sources.push(`https://wsrv.nl/?url=${enc}&w=800&q=95&output=webp`);
+    sources.push(`https://images.weserv.nl/?url=${enc}&w=800&q=95&output=webp`);
+    sources.push(original);
+    sources.push(`https://wsrv.nl/?url=${enc}&w=600&q=80`);
+    sources.push(`https://images.weserv.nl/?url=${enc}&w=600&q=80`);
+  } catch(e) {
+    console.warn('Image source error:', e);
+  }
+  
+  return [...new Set(sources.filter(Boolean))];
+}
+
+// ✓ TO'LIQ VERSIYA
+function attachImgFallback(img, rawUrl, onAllFailed) {
+  if (!rawUrl || rawUrl.trim() === '') {
+    if (onAllFailed) onAllFailed();
+    return;
+  }
+  
+  const sources = buildImageSources(rawUrl);
+  if (!sources.length) {
+    if (onAllFailed) onAllFailed();
+    return;
+  }
+  
+  let idx = 0;
+  let attempts = 0;
+  const maxAttempts = sources.length * 2;
+  
   img.onerror = function() {
     attempts++;
     if (attempts >= maxAttempts || idx >= sources.length) {
@@ -704,7 +753,12 @@ function attachImgFallback(img, rawUrl, onAllFailed) {
       console.log(`Trying fallback ${idx + 1}/${sources.length}:`, sources[idx]);
       img.src = sources[idx++];
     }
-  }
+  };
+  
+  // ✓ Birinchi rasmni yuklash
+  img.src = sources[idx++];
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 
 const translations = {
