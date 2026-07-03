@@ -3693,27 +3693,38 @@ function renderModalImage(p, il) {
   const wrap = document.getElementById('modalImageWrap');
   const pills = document.getElementById('imgLangPills');
   const hint = document.getElementById('zoomHint');
+  
+  // Eski elementlarni tozalash
   Array.from(wrap.children).forEach(child => {
     if (child !== pills && child !== hint) child.remove();
   });
+  
   const ruPill = document.getElementById('imgLangRu');
   if (ruPill) ruPill.style.display = p.hasImageRu ? '' : 'none';
-  let rawUrl = il === 'ru' ? (p.hasImageRu ? p.imageRu : p.imageUz) : p.imageUz;
-  if (rawUrl) {
+  
+  let rawUrl = il === 'ru' ? (p.hasImageRu && p.imageRu ? p.imageRu : p.imageUz) : p.imageUz;
+  
+  // ✓ Rasm mavjudligini tekshirish
+  if (rawUrl && rawUrl.trim() !== '' && rawUrl !== 'null') {
     const img = document.createElement('img');
-    img.alt = p.uz.name; img.id = 'modalImg';
+    img.alt = p.uz.name;
+    img.id = 'modalImg';
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
     wrap.insertBefore(img, pills);
     hint.style.display = '';
+    
     attachImgFallback(img, rawUrl, () => {
       img.remove();
       const em = document.createElement('div');
-      em.className = 'modal-image-emoji'; em.textContent = p.emoji||'💊';
+      em.className = 'modal-image-emoji';
+      em.textContent = p.emoji || '💊';
       wrap.insertBefore(em, pills);
       hint.style.display = 'none';
     });
   } else {
     const em = document.createElement('div');
-    em.className = 'modal-image-emoji'; em.textContent = p.emoji||'💊';
+    em.className = 'modal-image-emoji';
+    em.textContent = p.emoji || '💊';
     wrap.insertBefore(em, pills);
     hint.style.display = 'none';
   }
