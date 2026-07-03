@@ -3640,21 +3640,26 @@ function getMinPriceUsd(p) {
 
 function renderProducts() {
   const filtered = selectedCat === 'hammasi' ? products : products.filter(p => p.cat === selectedCat);
+  
   document.getElementById('grid').innerHTML = filtered.map(p => {
     const info = p.uz;
-    const imgTag = p.imageUz
+    // ✓ Rasm borligini aniq tekshirish
+    const hasValidImage = p.imageUz && p.imageUz.trim() !== '' && p.imageUz !== 'null';
+    const imgTag = hasValidImage
       ? `<img class="prod-img" data-pid="${p.id}" alt="${info.name}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`
-      : `<span class="card-img-emoji">${p.emoji||'💊'}</span>`;
+      : `<span class="card-img-emoji">${p.emoji || '💊'}</span>`;
+    
     const minPrice = getMinPrice(p);
     const minPriceUsd = getMinPriceUsd(p);
     const showFrom = (p.hasPackages && p.packages.length > 1) || (p.hasBrands && p.brands.length > 1);
+    
     return `
     <div class="card" onclick="openDetail(${p.id})">
       ${p.badge ? `<div class="badge">${p.badge}</div>` : ''}
       <div class="card-img-wrap">${imgTag}</div>
       <div class="card-body">
         <div class="card-name">${info.name}</div>
-        <div class="card-sub">${info.sub}</div>
+        ${info.sub ? `<div class="card-shop">${info.sub}</div>` : ''}
         <div class="card-price">
           ${showFrom ? `<span class="card-price-from">${t('fromPrice')}</span>` : ''}
           ${minPrice != null ? `${minPrice.toLocaleString()} ${t('currency')}` : ''}
@@ -3664,15 +3669,24 @@ function renderProducts() {
       <button class="card-add" onclick="quickAdd(event,${p.id})">+</button>
     </div>`;
   }).join('');
-  // Rasmlarni ko'p bosqichli fallback zanjiri bilan yuklaymiz
-  document.querySelectorAll('#grid .prod-img').forEach(img => {
-    const p = products.find(x => String(x.id) === img.dataset.pid);
-    if (!p) return;
-    attachImgFallback(img, p.imageUz, () => {
-      const wrap = img.parentNode;
-      if (wrap) wrap.innerHTML = `<span class="card-img-emoji">${p.emoji||'💊'}</span>`;
+  
+  // ✓ Rasmlarni fallback bilan yuklaymiz
+  setTimeout(() => {
+    document.querySelectorAll('#grid .prod-img').forEach(img => {
+      const p = products.find(x => String(x.id) === img.dataset.pid);
+      
+      if (!p || !p.imageUz || p.imageUz.trim() === '' || p.imageUz === 'null') {
+        const wrap = img.parentNode;
+        if (wrap) wrap.innerHTML = `<span class="card-img-emoji">${p?.emoji || '💊'}</span>`;
+        return;
+      }
+      
+      attachImgFallback(img, p.imageUz, () => {
+        const wrap = img.parentNode;
+        if (wrap) wrap.innerHTML = `<span class="card-img-emoji">${p.emoji || '💊'}</span>`;
+      });
     });
-  });
+  }, 50); // DOM yangilangandan keyin ishlaydi
 }
 
 function renderModalImage(p, il) {
