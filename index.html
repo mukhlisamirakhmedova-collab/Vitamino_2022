@@ -656,36 +656,55 @@ function getOriginalUrl(rawUrl) {
 
 function buildImageSources(rawUrl) {
   const original = getOriginalUrl(rawUrl);
-  if (!original) return [];
+  if (!original || original.trim() === '') return [];
+  
   const enc = encodeURIComponent(original);
-  const sources = [
-    'https://wsrv.nl/?url=' + enc + '&w=800&q=95&output=webp',
-    'https://images.weserv.nl/?url=' + enc + '&w=800&q=95&output=webp',
-    original,
-    'https://wsrv.nl/?url=' + enc + '&w=800&q=90',
-  ];
+  const sources = [];
+  
+  // Fallback zanjiri
+  try {
+    sources.push(`https://wsrv.nl/?url=${enc}&w=800&q=95&output=webp`);
+    sources.push(`https://images.weserv.nl/?url=${enc}&w=800&q=95&output=webp`);
+    sources.push(original);
+    sources.push(`https://wsrv.nl/?url=${enc}&w=600&q=80`);
+    sources.push(`https://images.weserv.nl/?url=${enc}&w=600&q=80`);
+  } catch(e) {
+    console.warn('Image source error:', e);
+  }
+  
   return [...new Set(sources.filter(Boolean))];
 }
 
-// Eski nomlash bilan moslik uchun (boshqa joylarda ishlatilgan bo'lsa)
-function proxyImg(url) {
-  const sources = buildImageSources(url);
-  return sources.length ? sources[0] : null;
-}
-function extractOriginalUrl(url) { return getOriginalUrl(url); }
-
-// img elementga fallback zanjirini ulaydi: manba ishlamasa avtomatik
-// keyingisini sinaydi, hammasi ishlamasa — emoji-belgi ko'rsatiladi
+// Rasm yuklanishini kuzatish
 function attachImgFallback(img, rawUrl, onAllFailed) {
+  if (!rawUrl || rawUrl.trim() === '') {
+    if (onAllFailed) onAllFailed();
+    return;
+  }
+  
   const sources = buildImageSources(rawUrl);
-  if (!sources.length) { if (onAllFailed) onAllFailed(); return; }
+  if (!sources.length) {
+    if (onAllFailed) onAllFailed();
+    return;
+  }
+  
   let idx = 0;
+  let attempts = 0;
+  const maxAttempts = sources.length * 2; // Har bir URL uchun 2 marta urinish
+  
   img.onerror = function() {
-    if (idx >= sources.length) { if (onAllFailed) onAllFailed(); return; }
-    img.src = sources[idx++];
-  };
-  img.src = sources[idx++];
-}
+    attempts++;
+    if (attempts >= maxAttempts || idx >= sources.length) {
+      console.warn('All image sources failed for:', rawUrl);
+      if (onAllFailed) onAllFailed();
+      return;
+    }
+    
+    if (idx < sources.length) {
+      console.log(`Trying fallback ${idx + 1}/${sources.length}:`, sources[idx]);
+      img.src = sources[idx++];
+    }
+  }
 // ─────────────────────────────────────────────────────────────────────────
 
 const translations = {
