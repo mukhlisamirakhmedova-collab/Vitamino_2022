@@ -639,126 +639,24 @@ const TYPE_META = {
   tablet:  { icon: '⚪️', uz: 'Tabletka',       ru: 'Таблетка'    },
 };
 
-// ── IMAGE PROXY (har doim ishlaydigan, ko'p bosqichli versiya) ────────────
-// Bitta manba ishlamasa, avtomatik ravishda keyingisiga o'tadi:
-// 1) wsrv.nl proksi (webp, siqilgan)  2) images.weserv.nl (muqobil domen)
-// 3) to'g'ridan-to'g'ri original havola  4) wsrv.nl (sifatni pasaytirib)
-function getOriginalUrl(rawUrl) {
-  if (!rawUrl) return null;
-  if (rawUrl.includes('wsrv.nl') || rawUrl.includes('weserv.nl') || rawUrl.includes('statically.io')) {
-    try {
-      const match = rawUrl.match(/[?&]url=([^&]+)/);
-      if (match) return decodeURIComponent(match[1]);
-    } catch(e) {}
-  }
-  return rawUrl;
+// ── IMAGE PROXY ───────────────────────────────────────────────────────────
+// Barcha rasmlar wsrv.nl CDN orqali yuklanadi — Telegram blok qilmaydi
+function proxyImg(url) {
+  if (!url) return null;
+  // URL allaqachon wsrv.nl formatida bo'lsa, shundayligicha qaytaramiz
+  if (url.includes('wsrv.nl')) return url;
+  // Yangi URL bo'lsa, proxy orqali o'tkazamiz
+  return 'https://wsrv.nl/?url=' + encodeURIComponent(url) + '&w=800&q=95&output=webp';
 }
-
-function buildImageSources(rawUrl) {
-  const original = getOriginalUrl(rawUrl);
-  if (!original || original.trim() === '') return [];
-  
-  const enc = encodeURIComponent(original);
-  const sources = [];
-  
-  // Fallback zanjiri
+// Wsrv.nl URL dan original URL ni ajratib olamiz (fallback uchun)
+function extractOriginalUrl(wsrvUrl) {
+  if (!wsrvUrl || !wsrvUrl.includes('wsrv.nl')) return wsrvUrl;
   try {
-    sources.push(`https://wsrv.nl/?url=${enc}&w=800&q=95&output=webp`);
-    sources.push(`https://images.weserv.nl/?url=${enc}&w=800&q=95&output=webp`);
-    sources.push(original);
-    sources.push(`https://wsrv.nl/?url=${enc}&w=600&q=80`);
-    sources.push(`https://images.weserv.nl/?url=${enc}&w=600&q=80`);
-  } catch(e) {
-    console.warn('Image source error:', e);
-  }
-  
-  return [...new Set(sources.filter(Boolean))];
+    const match = wsrvUrl.match(/[?&]url=([^&]+)/);
+    if (match) return decodeURIComponent(match[1]);
+  } catch(e) {}
+  return null;
 }
-
-// Rasm yuklanishini kuzatish
-function attachImgFallback(img, rawUrl, onAllFailed) {
-  if (!rawUrl || rawUrl.trim() === '') {
-    if (onAllFailed) onAllFailed();
-    return;
-  }
-  
-  const sources = buildImageSources(rawUrl);
-  if (!sources.length) {
-    if (onAllFailed) onAllFailed();
-    return;
-  }
-  
-  let idx = 0;
-  let attempts = 0;
-  const maxAttempts = sources.length * 2; // Har bir URL uchun 2 marta urinish
-  
- // ── IMAGE PROXY (har doim ishlaydigan, ko'p bosqichli versiya) ────────────
-function getOriginalUrl(rawUrl) {
-  if (!rawUrl) return null;
-  if (rawUrl.includes('wsrv.nl') || rawUrl.includes('weserv.nl') || rawUrl.includes('statically.io')) {
-    try {
-      const match = rawUrl.match(/[?&]url=([^&]+)/);
-      if (match) return decodeURIComponent(match[1]);
-    } catch(e) {}
-  }
-  return rawUrl;
-}
-
-function buildImageSources(rawUrl) {
-  const original = getOriginalUrl(rawUrl);
-  if (!original || original.trim() === '') return [];
-  
-  const enc = encodeURIComponent(original);
-  const sources = [];
-  
-  try {
-    sources.push(`https://wsrv.nl/?url=${enc}&w=800&q=95&output=webp`);
-    sources.push(`https://images.weserv.nl/?url=${enc}&w=800&q=95&output=webp`);
-    sources.push(original);
-    sources.push(`https://wsrv.nl/?url=${enc}&w=600&q=80`);
-    sources.push(`https://images.weserv.nl/?url=${enc}&w=600&q=80`);
-  } catch(e) {
-    console.warn('Image source error:', e);
-  }
-  
-  return [...new Set(sources.filter(Boolean))];
-}
-
-// ✓ TO'LIQ VERSIYA
-function attachImgFallback(img, rawUrl, onAllFailed) {
-  if (!rawUrl || rawUrl.trim() === '') {
-    if (onAllFailed) onAllFailed();
-    return;
-  }
-  
-  const sources = buildImageSources(rawUrl);
-  if (!sources.length) {
-    if (onAllFailed) onAllFailed();
-    return;
-  }
-  
-  let idx = 0;
-  let attempts = 0;
-  const maxAttempts = sources.length * 2;
-  
-  img.onerror = function() {
-    attempts++;
-    if (attempts >= maxAttempts || idx >= sources.length) {
-      console.warn('All image sources failed for:', rawUrl);
-      if (onAllFailed) onAllFailed();
-      return;
-    }
-    
-    if (idx < sources.length) {
-      console.log(`Trying fallback ${idx + 1}/${sources.length}:`, sources[idx]);
-      img.src = sources[idx++];
-    }
-  };
-  
-  // ✓ Birinchi rasmni yuklash
-  img.src = sources[idx++];
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 
 const translations = {
@@ -3694,26 +3592,22 @@ function getMinPriceUsd(p) {
 
 function renderProducts() {
   const filtered = selectedCat === 'hammasi' ? products : products.filter(p => p.cat === selectedCat);
-  
   document.getElementById('grid').innerHTML = filtered.map(p => {
     const info = p.uz;
-    // ✓ Rasm borligini aniq tekshirish
-    const hasValidImage = p.imageUz && p.imageUz.trim() !== '' && p.imageUz !== 'null';
-    const imgTag = hasValidImage
-      ? `<img class="prod-img" data-pid="${p.id}" alt="${info.name}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`
-      : `<span class="card-img-emoji">${p.emoji || '💊'}</span>`;
-    
+    const imgUrl = proxyImg(p.imageUz);
+    const imgTag = imgUrl
+      ? `<img src="${imgUrl}" alt="${info.name}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="var o=extractOriginalUrl(this.src);if(o&&this.src!==o){this.onerror=function(){this.style.display='none';this.parentNode.innerHTML='<span class=\\'card-img-emoji\\'>${p.emoji||'💊'}</span>';};this.src=o;}else{this.style.display='none';this.parentNode.innerHTML='<span class=\\'card-img-emoji\\'>${p.emoji||'💊'}</span>';}">`
+      : `<span class="card-img-emoji">${p.emoji||'💊'}</span>`;
     const minPrice = getMinPrice(p);
     const minPriceUsd = getMinPriceUsd(p);
     const showFrom = (p.hasPackages && p.packages.length > 1) || (p.hasBrands && p.brands.length > 1);
-    
     return `
     <div class="card" onclick="openDetail(${p.id})">
       ${p.badge ? `<div class="badge">${p.badge}</div>` : ''}
       <div class="card-img-wrap">${imgTag}</div>
       <div class="card-body">
         <div class="card-name">${info.name}</div>
-        ${info.sub ? `<div class="card-shop">${info.sub}</div>` : ''}
+        <div class="card-sub">${info.sub}</div>
         <div class="card-price">
           ${showFrom ? `<span class="card-price-from">${t('fromPrice')}</span>` : ''}
           ${minPrice != null ? `${minPrice.toLocaleString()} ${t('currency')}` : ''}
@@ -3723,62 +3617,46 @@ function renderProducts() {
       <button class="card-add" onclick="quickAdd(event,${p.id})">+</button>
     </div>`;
   }).join('');
-  
-  // ✓ Rasmlarni fallback bilan yuklaymiz
-  setTimeout(() => {
-    document.querySelectorAll('#grid .prod-img').forEach(img => {
-      const p = products.find(x => String(x.id) === img.dataset.pid);
-      
-      if (!p || !p.imageUz || p.imageUz.trim() === '' || p.imageUz === 'null') {
-        const wrap = img.parentNode;
-        if (wrap) wrap.innerHTML = `<span class="card-img-emoji">${p?.emoji || '💊'}</span>`;
-        return;
-      }
-      
-      attachImgFallback(img, p.imageUz, () => {
-        const wrap = img.parentNode;
-        if (wrap) wrap.innerHTML = `<span class="card-img-emoji">${p.emoji || '💊'}</span>`;
-      });
-    });
-  }, 50); // DOM yangilangandan keyin ishlaydi
 }
 
 function renderModalImage(p, il) {
   const wrap = document.getElementById('modalImageWrap');
   const pills = document.getElementById('imgLangPills');
   const hint = document.getElementById('zoomHint');
-  
-  // Eski elementlarni tozalash
   Array.from(wrap.children).forEach(child => {
     if (child !== pills && child !== hint) child.remove();
   });
-  
   const ruPill = document.getElementById('imgLangRu');
   if (ruPill) ruPill.style.display = p.hasImageRu ? '' : 'none';
-  
-  let rawUrl = il === 'ru' ? (p.hasImageRu && p.imageRu ? p.imageRu : p.imageUz) : p.imageUz;
-  
-  // ✓ Rasm mavjudligini tekshirish
-  if (rawUrl && rawUrl.trim() !== '' && rawUrl !== 'null') {
+  let rawUrl = il === 'ru' ? (p.hasImageRu ? p.imageRu : p.imageUz) : p.imageUz;
+  let url = proxyImg(rawUrl);
+  if (url) {
     const img = document.createElement('img');
-    img.alt = p.uz.name;
-    img.id = 'modalImg';
-    img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+    img.src = url; img.alt = p.uz.name; img.id = 'modalImg';
+    img.onerror = () => {
+      const orig = extractOriginalUrl(img.src);
+      if (orig && img.src !== orig) {
+        img.onerror = () => {
+          img.remove();
+          const em2 = document.createElement('div');
+          em2.className = 'modal-image-emoji'; em2.textContent = p.emoji||'💊';
+          wrap.insertBefore(em2, pills);
+          hint.style.display = 'none';
+        };
+        img.src = orig;
+      } else {
+        img.remove();
+        const em = document.createElement('div');
+        em.className = 'modal-image-emoji'; em.textContent = p.emoji||'💊';
+        wrap.insertBefore(em, pills);
+        hint.style.display = 'none';
+      }
+    };
     wrap.insertBefore(img, pills);
     hint.style.display = '';
-    
-    attachImgFallback(img, rawUrl, () => {
-      img.remove();
-      const em = document.createElement('div');
-      em.className = 'modal-image-emoji';
-      em.textContent = p.emoji || '💊';
-      wrap.insertBefore(em, pills);
-      hint.style.display = 'none';
-    });
   } else {
     const em = document.createElement('div');
-    em.className = 'modal-image-emoji';
-    em.textContent = p.emoji || '💊';
+    em.className = 'modal-image-emoji'; em.textContent = p.emoji||'💊';
     wrap.insertBefore(em, pills);
     hint.style.display = 'none';
   }
@@ -3966,10 +3844,9 @@ function renderCart() {
     container.innerHTML = `<div class="cart-empty"><div class="cart-empty-icon">🛒</div>${t('emptyCart')}</div>`;
     totalEl.style.display = 'none'; orderBtn.style.display = 'none'; return;
   }
-  container.innerHTML = cart.map((item, idx) => {
-    const thumb = item.product.imageUz
-      ? `<img class="cart-thumb-img" data-idx="${idx}" alt="${item.product.uz.name}">`
-      : item.product.emoji||'💊';
+  container.innerHTML = cart.map(item => {
+    const imgUrl = proxyImg(item.product.imageUz);
+    const thumb = imgUrl ? `<img src="${imgUrl}" alt="${item.product.uz.name}">` : item.product.emoji||'💊';
     const unit = pkgUnit(item.pkg);
     const qtyLabel = unit ? `${item.pkg.qty} ${unit}` : `${item.pkg.qty}`;
     const pkgLabel = item.product.hasPackages ? `📦 ${qtyLabel}` : '';
@@ -3998,14 +3875,6 @@ function renderCart() {
       </div>
     </div>`;
   }).join('');
-  document.querySelectorAll('#cartItems .cart-thumb-img').forEach(img => {
-    const item = cart[Number(img.dataset.idx)];
-    if (!item) return;
-    attachImgFallback(img, item.product.imageUz, () => {
-      const wrap = img.parentNode;
-      if (wrap) wrap.textContent = item.product.emoji||'💊';
-    });
-  });
   const total = cart.reduce((s, i) => s + (i.pkg.price != null ? i.pkg.price * i.qty : 0), 0);
   const totalUsd = cart.reduce((s, i) => s + (i.pkg.priceUsd != null ? i.pkg.priceUsd * i.qty : 0), 0);
   const hasUsd = cart.some(i => i.pkg.priceUsd != null);
