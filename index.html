@@ -640,13 +640,20 @@ const TYPE_META = {
 };
 
 // ── IMAGE PROXY ───────────────────────────────────────────────────────────
-// Barcha rasmlar wsrv.nl CDN orqali yuklanadi — Telegram blok qilmaydi
 function proxyImg(url) {
   if (!url) return null;
-  // URL allaqachon wsrv.nl formatida bo'lsa, shundayligicha qaytaramiz
-  if (url.includes('wsrv.nl')) return url;
-  // Yangi URL bo'lsa, proxy orqali o'tkazamiz
-  return 'https://wsrv.nl/?url=' + encodeURIComponent(url) + '&w=800&q=95&output=webp';
+
+  // Agar allaqachon wsrv.nl orqali o'tgan bo'lsa — ichki URL ni ajratib olamiz
+  let innerUrl = url;
+  if (url.includes('wsrv.nl')) {
+    const match = url.match(/[?&]url=([^&]+)/);
+    if (match) {
+      try { innerUrl = decodeURIComponent(match[1]); } catch(e) { innerUrl = match[1]; }
+    }
+  }
+
+  // Har doim to'g'ri encode qilib, jpg formatida qaytaramiz (universal support)
+  return 'https://wsrv.nl/?url=' + encodeURIComponent(innerUrl) + '&w=800&q=90&output=jpg&n=-1';
 }
 // Wsrv.nl URL dan original URL ni ajratib olamiz (fallback uchun)
 function extractOriginalUrl(wsrvUrl) {
