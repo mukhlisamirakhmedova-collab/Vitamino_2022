@@ -3628,6 +3628,7 @@ const imgTag = imgUrl
 }
 
 function renderModalImage(p, il) {
+  img.crossOrigin = 'anonymous';
   const wrap = document.getElementById('modalImageWrap');
   const pills = document.getElementById('imgLangPills');
   const hint = document.getElementById('zoomHint');
