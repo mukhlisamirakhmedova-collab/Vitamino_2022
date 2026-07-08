@@ -640,20 +640,13 @@ const TYPE_META = {
 };
 
 // ── IMAGE PROXY ───────────────────────────────────────────────────────────
+// Barcha rasmlar wsrv.nl CDN orqali yuklanadi — Telegram blok qilmaydi
 function proxyImg(url) {
   if (!url) return null;
-
-  // Agar allaqachon wsrv.nl orqali o'tgan bo'lsa — ichki URL ni ajratib olamiz
-  let innerUrl = url;
-  if (url.includes('wsrv.nl')) {
-    const match = url.match(/[?&]url=([^&]+)/);
-    if (match) {
-      try { innerUrl = decodeURIComponent(match[1]); } catch(e) { innerUrl = match[1]; }
-    }
-  }
-
-  // Har doim to'g'ri encode qilib, jpg formatida qaytaramiz (universal support)
-  return 'https://wsrv.nl/?url=' + encodeURIComponent(innerUrl) + '&w=800&q=90&output=jpg&n=-1';
+  // URL allaqachon wsrv.nl formatida bo'lsa, shundayligicha qaytaramiz
+  if (url.includes('wsrv.nl')) return url;
+  // Yangi URL bo'lsa, proxy orqali o'tkazamiz
+  return 'https://wsrv.nl/?url=' + encodeURIComponent(url) + '&w=800&q=95&output=webp';
 }
 // Wsrv.nl URL dan original URL ni ajratib olamiz (fallback uchun)
 function extractOriginalUrl(wsrvUrl) {
@@ -3602,10 +3595,9 @@ function renderProducts() {
   document.getElementById('grid').innerHTML = filtered.map(p => {
     const info = p.uz;
     const imgUrl = proxyImg(p.imageUz);
-    // renderProducts() ichida img tegini o'zgartiring:
-const imgTag = imgUrl
-  ? `<img src="${imgUrl}" alt="${info.name}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="...">`
-  : `<span class="card-img-emoji">${p.emoji||'💊'}</span>`;
+    const imgTag = imgUrl
+      ? `<img src="${imgUrl}" alt="${info.name}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="var o=extractOriginalUrl(this.src);if(o&&this.src!==o){this.onerror=function(){this.style.display='none';this.parentNode.innerHTML='<span class=\\'card-img-emoji\\'>${p.emoji||'💊'}</span>';};this.src=o;}else{this.style.display='none';this.parentNode.innerHTML='<span class=\\'card-img-emoji\\'>${p.emoji||'💊'}</span>';}">`
+      : `<span class="card-img-emoji">${p.emoji||'💊'}</span>`;
     const minPrice = getMinPrice(p);
     const minPriceUsd = getMinPriceUsd(p);
     const showFrom = (p.hasPackages && p.packages.length > 1) || (p.hasBrands && p.brands.length > 1);
@@ -3628,7 +3620,6 @@ const imgTag = imgUrl
 }
 
 function renderModalImage(p, il) {
-  img.crossOrigin = 'anonymous';
   const wrap = document.getElementById('modalImageWrap');
   const pills = document.getElementById('imgLangPills');
   const hint = document.getElementById('zoomHint');
